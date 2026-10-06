@@ -6,7 +6,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #define SERIAL_RX_RING_SIZE 256U
 #define SERIAL_TX_RING_SIZE 256U
@@ -178,18 +177,4 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
         }
         serial_notify_from_isr();
     }
-}
-
-void serial_transport_send_string(const char *str) {
-    if (str == NULL) {
-        return;
-    }
-    size_t len = strlen(str);
-    if (len == 0U) {
-        return;
-    }
-    taskENTER_CRITICAL();
-    (void)lwrb_write(&tx_rb, str, (lwrb_sz_t)len);
-    taskEXIT_CRITICAL();
-    serial_transport_poll_tx();
 }

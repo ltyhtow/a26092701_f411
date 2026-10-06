@@ -102,26 +102,8 @@ int32_t app_synctasks_init(void)
   }
 #endif
 
-/* 1: 启用物理标定测试模式 (电机静止, 打印 Pitch/Roll/编码器); 0: 正常自平衡闭环模式 */
-#ifndef BALANCE_CALIBRATION_MODE_ENABLED
-#define BALANCE_CALIBRATION_MODE_ENABLED 1U
-#endif
-
 #if MOTOR_POLARITY_TEST_ENABLED
   ret = motor_polarity_test_task_start(&MotorPolarityTestTask_Handle);
-  if (ret != pdPASS)
-  {
-      app_cleanup_before_scheduler();
-      return -1;
-  }
-#elif BALANCE_CALIBRATION_MODE_ENABLED
-  /* 标定模式：确保电机输出完全静止断开，启动编码器硬件计数与标定遥测任务 */
-  motor_driver_init();
-  motor_driver_stop();
-  encoder_driver_init();
-
-  ret = xTaskCreate(balance_calibration_task_entry, "CalibTask", 512U,
-                    (void *)imu_attitude_queue, 2U, NULL);
   if (ret != pdPASS)
   {
       app_cleanup_before_scheduler();

@@ -47,36 +47,36 @@ void motor_driver_set_output(int16_t left_pwm, int16_t right_pwm) {
     }
 
     /* --------------------------------------------------------------------- */
-    /* 1. 左轮 (A 路, 经硬件测试证实极性需反相以同向向前):                        */
-    /*    前进 (left_pwm > 0): AIN1(PA8)=0,   AIN2(PA9)=PWM                      */
-    /*    后退 (left_pwm < 0): AIN1(PA8)=PWM, AIN2(PA9)=0                        */
+    /* 1. 左轮 (A 路, 底盘重装后修正物理基准):                                    */
+    /*    前进 (left_pwm > 0): AIN1(PA8)=PWM, AIN2(PA9)=0                        */
+    /*    后退 (left_pwm < 0): AIN1(PA8)=0,   AIN2(PA9)=PWM                      */
     /* --------------------------------------------------------------------- */
     if (left_pwm > 0) {
         uint32_t duty = clamp_duty((uint32_t)left_pwm);
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0U);    /* PA8  = 0 */
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty);  /* PA9  = PWM */
-    } else if (left_pwm < 0) {
-        uint32_t duty = clamp_duty((uint32_t)(-left_pwm));
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty);  /* PA8  = PWM */
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0U);    /* PA9  = 0 */
+    } else if (left_pwm < 0) {
+        uint32_t duty = clamp_duty((uint32_t)(-left_pwm));
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0U);    /* PA8  = 0 */
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty);  /* PA9  = PWM */
     } else {
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0U);
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0U);
     }
 
     /* --------------------------------------------------------------------- */
-    /* 2. 右轮 (B 路, 正常极性):                                              */
-    /*    前进 (right_pwm > 0): BIN1(PA10)=PWM, BIN2(PA11)=0                     */
-    /*    后退 (right_pwm < 0): BIN1(PA10)=0,   BIN2(PA11)=PWM                   */
+    /* 2. 右轮 (B 路, 底盘重装后修正物理基准):                                    */
+    /*    前进 (right_pwm > 0): BIN1(PA10)=0,   BIN2(PA11)=PWM                   */
+    /*    后退 (right_pwm < 0): BIN1(PA10)=PWM, BIN2(PA11)=0                     */
     /* --------------------------------------------------------------------- */
     if (right_pwm > 0) {
         uint32_t duty = clamp_duty((uint32_t)right_pwm);
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty);  /* PA10 = PWM */
-        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0U);    /* PA11 = 0 */
-    } else if (right_pwm < 0) {
-        uint32_t duty = clamp_duty((uint32_t)(-right_pwm));
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0U);    /* PA10 = 0 */
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, duty);  /* PA11 = PWM */
+    } else if (right_pwm < 0) {
+        uint32_t duty = clamp_duty((uint32_t)(-right_pwm));
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, duty);  /* PA10 = PWM */
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0U);    /* PA11 = 0 */
     } else {
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0U);
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0U);

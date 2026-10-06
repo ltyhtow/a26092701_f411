@@ -34,10 +34,11 @@ void balance_controller_default_config(balance_controller_config_t *config)
     config->balance_loop.kd = 1.2f;
 
     /* 2. Velocity PI Loop Defaults
-     * Low-pass filter alpha = 0.75f strongly filters pulse quantization noise.
-     * Integral limit prevents windup when carrying continuous mechanical load. */
-    config->velocity_loop.kp = 8.0f;
-    config->velocity_loop.ki = 0.4f;
+     * Note: Encoders are disabled / zeroed due to 2.0V rail degradation.
+     * Kp and Ki set to 0.0f to operate in pure upright balance PD mode
+     * and prevent integrator windup from missing pulse feedback. */
+    config->velocity_loop.kp = 0.0f;
+    config->velocity_loop.ki = 0.0f;
     config->velocity_loop.integral_limit = 2000.0f;
     config->velocity_loop.lpf_alpha = 0.75f;
     config->velocity_loop.max_output = 1500.0f;

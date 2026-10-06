@@ -6,9 +6,6 @@
 #ifndef IMU_UART_TEST_ENABLED
 #define IMU_UART_TEST_ENABLED    0U
 #endif
-#ifndef IMU_UART_ASCII_OUTPUT
-#define IMU_UART_ASCII_OUTPUT    1U /* 1: 串口输出可读文本; 0: 输出 LwPKT 二进制协议帧 */
-#endif
 #define IMU_UART_TEST_PERIOD_MS  50U
 
 /* Fusion runs on the raw sample stream and keeps its own latest-value output. */
