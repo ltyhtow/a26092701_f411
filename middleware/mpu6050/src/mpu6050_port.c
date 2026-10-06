@@ -137,3 +137,7 @@ uint8_t imu_port_deinit(void) {
     mpu6050_ready = 0U;
     return mpu6050_deinit(&mpu6050_handle);
 }
+
+uint8_t imu_port_is_ready(void) {
+    return mpu6050_ready;
+}

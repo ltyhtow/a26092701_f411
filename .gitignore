@@ -18,6 +18,8 @@ CTestTestfile.cmake
 # IDE & Editor files
 .idea/
 .vscode/
+.settings/
+.clangd
 *.swp
 *.swo
 *~

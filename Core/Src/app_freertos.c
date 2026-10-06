@@ -124,10 +124,36 @@ int32_t app_synctasks_init(void)
 static void function1(void *pvParameters)
 {
   (void)pvParameters;
+  imu_fusion_output_t attitude;
+  uint32_t delay_ms = 500U;
+
   for(;;)
   {
+    if (imu_port_is_ready() == 0U)
+    {
+      /* MPU6050 未连接或 I2C 通信失败：快闪 (100ms) */
+      delay_ms = 100U;
+    }
+    else if (xQueuePeek(imu_attitude_queue, &attitude, 0U) == pdTRUE)
+    {
+      if ((attitude.status_flags & IMU_FUSION_STATUS_CALIBRATING) != 0U)
+      {
+        /* 启动静止校准中 (累计400个样本，约2秒)：中速闪 (250ms) */
+        delay_ms = 250U;
+      }
+      else
+      {
+        /* 校准完毕，姿态解算正常：慢闪 (500ms) */
+        delay_ms = 500U;
+      }
+    }
+    else
+    {
+      delay_ms = 500U;
+    }
+
     HAL_GPIO_TogglePin(SYS_LED_GPIO_Port, SYS_LED_Pin);
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(delay_ms));
   }
 }
 

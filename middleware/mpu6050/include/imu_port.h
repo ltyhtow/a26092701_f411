@@ -26,6 +26,7 @@ uint8_t imu_port_init(void);
 uint8_t imu_port_read(imu_sample_t *sample);
 void imu_port_get_diagnostics(imu_port_diagnostics_t *diagnostics);
 uint8_t imu_port_deinit(void);
+uint8_t imu_port_is_ready(void);
 
 #ifdef __cplusplus
 }

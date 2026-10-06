@@ -14,6 +14,7 @@ void serial_transport_deinit(void);
 lwrb_t* serial_transport_rx_buffer(void);
 lwrb_t* serial_transport_tx_buffer(void);
 void serial_transport_poll_tx(void);
+void serial_transport_send_string(const char *str);
 
 #ifdef __cplusplus
 }
