@@ -93,5 +93,14 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+    /* 错误指示：快速两下，停顿 */
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET); /* 亮 */
+    for (volatile uint32_t i = 0; i < 200000; i++) {}
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);   /* 灭 */
+    for (volatile uint32_t i = 0; i < 200000; i++) {}
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET); /* 亮 */
+    for (volatile uint32_t i = 0; i < 200000; i++) {}
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);   /* 灭 */
+    for (volatile uint32_t i = 0; i < 1500000; i++) {}
   }
 }

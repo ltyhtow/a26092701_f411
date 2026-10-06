@@ -16,7 +16,11 @@ void NMI_Handler(void)
 
 void HardFault_Handler(void)
 {
-  while (1) {}
+  while (1)
+  {
+    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    for (volatile uint32_t i = 0; i < 200000; i++) {}
+  }
 }
 
 void MemManage_Handler(void)

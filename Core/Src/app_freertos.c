@@ -8,8 +8,8 @@
 
 #include <string.h>
 
-#define Task1_stack_depth_words         128U
-#define ProtocolTask_stack_depth_words   384U
+#define Task1_stack_depth_words         256U
+#define ProtocolTask_stack_depth_words   512U
 #define PROTOCOL_TASK_PERIOD_MS         5U
 
 static TaskHandle_t Task1_Handle;
@@ -111,7 +111,7 @@ int32_t app_synctasks_init(void)
 
   /* Heartbeat Task (PC13 SYS_LED toggle) */
   ret = xTaskCreate(function1, "Task1", Task1_stack_depth_words,
-                    (void*) NULL, 0, &Task1_Handle);
+                    (void*) NULL, 1U, &Task1_Handle);
   if (ret != pdPASS)
   {
       app_cleanup_before_scheduler();
@@ -399,5 +399,27 @@ static void app_cleanup_before_scheduler(void)
   {
       vQueueDelete(imu_attitude_queue);
       imu_attitude_queue = NULL;
+  }
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+  (void)xTask;
+  (void)pcTaskName;
+  __disable_irq();
+  while (1)
+  {
+    HAL_GPIO_TogglePin(SYS_LED_GPIO_Port, SYS_LED_Pin);
+    for (volatile uint32_t i = 0; i < 100000; i++) {}
+  }
+}
+
+void vApplicationMallocFailedHook(void)
+{
+  __disable_irq();
+  while (1)
+  {
+    HAL_GPIO_TogglePin(SYS_LED_GPIO_Port, SYS_LED_Pin);
+    for (volatile uint32_t i = 0; i < 100000; i++) {}
   }
 }

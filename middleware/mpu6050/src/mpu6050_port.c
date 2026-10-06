@@ -2,6 +2,8 @@
 #include "driver_mpu6050.h"
 
 #include "i2c.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include <string.h>
 
@@ -19,20 +21,24 @@ static uint8_t mpu6050_iic_deinit(void) {
 
 static uint8_t mpu6050_iic_read(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len) {
     return (HAL_I2C_Mem_Read(&hi2c1, (uint16_t)addr, reg,
-                             I2C_MEMADD_SIZE_8BIT, buf, len, 100U) == HAL_OK)
+                             I2C_MEMADD_SIZE_8BIT, buf, len, 20U) == HAL_OK)
                ? 0U
                : 1U;
 }
 
 static uint8_t mpu6050_iic_write(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len) {
     return (HAL_I2C_Mem_Write(&hi2c1, (uint16_t)addr, reg,
-                              I2C_MEMADD_SIZE_8BIT, buf, len, 100U) == HAL_OK)
+                              I2C_MEMADD_SIZE_8BIT, buf, len, 20U) == HAL_OK)
                ? 0U
                : 1U;
 }
 
 static void mpu6050_delay_ms(uint32_t delay_ms) {
-    HAL_Delay(delay_ms);
+    if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    } else {
+        HAL_Delay(delay_ms);
+    }
 }
 
 static void mpu6050_debug_print(const char *const fmt, ...) {
@@ -55,18 +61,39 @@ static void mpu6050_dmp_orient_callback(uint8_t orientation) {
 uint8_t imu_port_init(void) {
     uint8_t result;
     uint8_t who_am_i = 0xFFU;
+    uint8_t target_addr = MPU6050_ADDRESS_AD0_LOW; /* 0xD0 */
     HAL_StatusTypeDef hal_status = HAL_ERROR;
 
     memset(&mpu6050_diagnostics, 0, sizeof(mpu6050_diagnostics));
-    mpu6050_diagnostics.address = MPU6050_ADDRESS_AD0_LOW;
+    mpu6050_diagnostics.address = target_addr;
     mpu6050_diagnostics.chip_id = 0xFFU;
 
+    /* 优先探测 0xD0 (AD0 接地) */
     hal_status = HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDRESS_AD0_LOW,
                                   0x75U, I2C_MEMADD_SIZE_8BIT,
-                                  &who_am_i, 1U, 100U);
+                                  &who_am_i, 1U, 20U);
+    if (hal_status == HAL_OK && who_am_i == 0x68U) {
+        target_addr = MPU6050_ADDRESS_AD0_LOW;
+    } else {
+        /* 若 0xD0 失败，尝试探测 0xD2 (AD0 接 VCC 或浮空) */
+        hal_status = HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDRESS_AD0_HIGH,
+                                      0x75U, I2C_MEMADD_SIZE_8BIT,
+                                      &who_am_i, 1U, 20U);
+        if (hal_status == HAL_OK && who_am_i == 0x68U) {
+            target_addr = MPU6050_ADDRESS_AD0_HIGH;
+        }
+    }
+
+    mpu6050_diagnostics.address = target_addr;
     mpu6050_diagnostics.chip_id = who_am_i;
     mpu6050_diagnostics.hal_status = (uint32_t)hal_status;
     mpu6050_diagnostics.hal_error_codes = hi2c1.ErrorCode;
+
+    if (hal_status != HAL_OK || who_am_i != 0x68U) {
+        mpu6050_ready = 0U;
+        mpu6050_diagnostics.init_result = 5U;
+        return 5U;
+    }
 
     DRIVER_MPU6050_LINK_INIT(&mpu6050_handle, mpu6050_handle);
     DRIVER_MPU6050_LINK_IIC_INIT(&mpu6050_handle, mpu6050_iic_init);
@@ -79,7 +106,7 @@ uint8_t imu_port_init(void) {
     mpu6050_handle.dmp_tap_callback = mpu6050_dmp_tap_callback;
     mpu6050_handle.dmp_orient_callback = mpu6050_dmp_orient_callback;
 
-    mpu6050_handle.iic_addr = MPU6050_ADDRESS_AD0_LOW;
+    mpu6050_handle.iic_addr = target_addr;
     result = mpu6050_init(&mpu6050_handle);
     mpu6050_diagnostics.init_result = result;
     mpu6050_diagnostics.hal_error_codes = hi2c1.ErrorCode;
