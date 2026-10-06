@@ -1,14 +1,13 @@
 #include "main.h"
-#include "cmsis_os2.h"
 #include "adc.h"
 #include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "app_freertos.h"
 
 void SystemClock_Config(void);
-void MX_FREERTOS_Init(void);
 
 int main(void)
 {
@@ -28,14 +27,14 @@ int main(void)
   MX_TIM5_Init();
   MX_USART2_UART_Init();
 
-  /* Init scheduler */
-  osKernelInitialize();
-
-  /* Call init function for freertos objects (in freertos.c) */
-  MX_FREERTOS_Init();
+  /* Initialize FreeRTOS tasks and queues */
+  if (app_synctasks_init() != 0)
+  {
+    Error_Handler();
+  }
 
   /* Start scheduler */
-  osKernelStart();
+  vTaskStartScheduler();
 
   /* We should never get here as control is now taken by the scheduler */
   while (1)

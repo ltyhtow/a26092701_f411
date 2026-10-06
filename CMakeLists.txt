@@ -37,6 +37,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     STM32_Drivers
     FreeRTOS
+    m
 )
 
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
