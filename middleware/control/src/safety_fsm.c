@@ -68,7 +68,7 @@ safety_fsm_config_t safety_fsm_default_config(void) {
     cfg.max_linear_decel           = SAFETY_FSM_DEFAULT_MAX_LINEAR_DECEL;
     cfg.max_yaw_accel              = SAFETY_FSM_DEFAULT_MAX_YAW_ACCEL;
     cfg.require_calibration        = false;
-    cfg.auto_rearm_enable          = false;
+    cfg.auto_rearm_enable          = true;
     return cfg;
 }
 
@@ -482,7 +482,7 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
     }
 
     /* 6. Auto-recovery handling (optional policy) */
-    if (fsm->state == BALANCE_STATE_FALLEN && fsm->config.auto_rearm_enable) {
+    if ((fsm->state == BALANCE_STATE_FALLEN || fsm->state == BALANCE_STATE_DISARMED) && fsm->config.auto_rearm_enable) {
         if (fsm->is_upright && fsm->is_steady &&
             !fsm->emergency_stop_active &&
             ((fsm->fault_flags & SAFETY_FAULT_SENSOR_INVALID) == 0U)) {

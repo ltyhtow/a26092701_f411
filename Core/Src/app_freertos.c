@@ -114,20 +114,24 @@ int32_t app_synctasks_init(void)
   motor_driver_init();
   encoder_driver_init();
 
-  /* 启动 200 Hz 闭环自平衡控制任务 (消费姿态、PID参数、运动指令队列) */
-  ret = balance_task_init_and_start(imu_attitude_queue,
-                                    pid_config_queue,
-                                    motion_command_queue,
-                                    balance_motor_set_output,
-                                    &BalanceTask_Handle);
+  /* 启动 200 Hz 闭环自平衡控制任务 (消费姿态、PID参数、运动指令、系统指令队列) */
+  balance_task_config_t b_cfg;
+  balance_task_default_config(&b_cfg);
+  b_cfg.attitude_queue       = imu_attitude_queue;
+  b_cfg.pid_config_queue     = pid_config_queue;
+  b_cfg.motion_command_queue = motion_command_queue;
+  b_cfg.system_command_queue = system_command_queue;
+  b_cfg.motor_output_hook    = balance_motor_set_output;
+  b_cfg.encoder_read_hook    = encoder_driver_read_speed;
+  b_cfg.enable_telemetry     = true;
+  b_cfg.telemetry_divisor    = 4U; /* 200Hz / 4 = 50Hz 遥测发布 */
+
+  ret = balance_task_start(&b_cfg, &BalanceTask_Handle);
   if (ret != pdPASS)
   {
       app_cleanup_before_scheduler();
       return -1;
   }
-
-  /* 注册编码器测速回调钩子 */
-  balance_task_set_encoder_read_hook(encoder_driver_read_speed);
 #endif
 
   /* Heartbeat Task (PC13 SYS_LED toggle) */
