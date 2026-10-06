@@ -29,11 +29,12 @@ static void motor_direct_gpio_init(void) {
 }
 
 static void motor_direct_gpio_set_forward(void) {
-    /* 电机 1 (A 路): AIN1(PA8)=HIGH (3.3V), AIN2(PA9)=LOW (0V) */
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+    /* 修正极性后：A路反相(PA8=0, PA9=1 向前)，B路正常(PA10=1, PA11=0 向前) */
+    /* 电机 1 (A 路/左轮): AIN1(PA8)=LOW (0V), AIN2(PA9)=HIGH (3.3V) -> 向前 */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
 
-    /* 电机 2 (B 路): BIN1(PA10)=HIGH (3.3V), BIN2(PA11)=LOW (0V) */
+    /* 电机 2 (B 路/右轮): BIN1(PA10)=HIGH (3.3V), BIN2(PA11)=LOW (0V) -> 向前 */
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
 }
@@ -47,11 +48,11 @@ static void motor_polarity_test_task_entry(void *argument) {
     /* 启动延时 1 秒，给操作者准备时间 */
     vTaskDelay(pdMS_TO_TICKS(1000U));
 
-    /* A 路和 B 路同时直接拉高正转输出 (持续有效直到断电或复位) */
+    /* 极性校正后的双轮同时向前拉高正转输出 (持续有效直到断电或复位) */
     motor_direct_gpio_set_forward();
 
     for (;;) {
-        serial_transport_send_string("[MOTOR TEST] DIRECT GPIO: AIN1(PA8)=1 AIN2(PA9)=0 | BIN1(PA10)=1 BIN2(PA11)=0\r\n");
+        serial_transport_send_string("[MOTOR TEST] FORWARD: AIN1(PA8)=0 AIN2(PA9)=1 (Left FWD) | BIN1(PA10)=1 BIN2(PA11)=0 (Right FWD)\r\n");
         vTaskDelay(pdMS_TO_TICKS(1000U));
     }
 }
