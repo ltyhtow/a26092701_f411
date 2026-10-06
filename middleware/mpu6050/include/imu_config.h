@@ -4,7 +4,7 @@
 /* Keep the raw sampler active while leaving bring-up UART traffic opt-in. */
 #define IMU_SAMPLE_PERIOD_MS     5U
 #ifndef IMU_UART_TEST_ENABLED
-#define IMU_UART_TEST_ENABLED    1U
+#define IMU_UART_TEST_ENABLED    0U
 #endif
 #ifndef IMU_UART_ASCII_OUTPUT
 #define IMU_UART_ASCII_OUTPUT    1U /* 1: 串口输出可读文本; 0: 输出 LwPKT 二进制协议帧 */

@@ -178,6 +178,12 @@ void balance_task_get_latest_outputs(balance_controller_outputs_t *outputs);
  */
 void balance_task_set_telemetry_enabled(bool enable, uint8_t divisor);
 
+/**
+ * @brief Calibration task entry function to inspect IMU pitch polarity, mechanical zero, and encoders.
+ * @param argument QueueHandle_t to imu_attitude_queue.
+ */
+void balance_calibration_task_entry(void *argument);
+
 #ifdef __cplusplus
 }
 #endif

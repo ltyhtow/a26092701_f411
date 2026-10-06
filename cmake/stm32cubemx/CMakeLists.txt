@@ -59,6 +59,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_controller.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/safety_fsm.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_task.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_calibration_task.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/src/driver_mpu6050.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionAhrs.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionBias.c
