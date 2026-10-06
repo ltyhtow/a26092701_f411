@@ -18,6 +18,8 @@ static TaskHandle_t ImuTask_Handle;
 static TaskHandle_t ImuFusionTask_Handle;
 #if MOTOR_POLARITY_TEST_ENABLED
 static TaskHandle_t MotorPolarityTestTask_Handle;
+#else
+static TaskHandle_t BalanceTask_Handle;
 #endif
 #if IMU_UART_TEST_ENABLED
 static TaskHandle_t ImuUartTestTask_Handle;
@@ -107,6 +109,25 @@ int32_t app_synctasks_init(void)
       app_cleanup_before_scheduler();
       return -1;
   }
+#else
+  /* 初始化电机驱动与编码器硬件外设 */
+  motor_driver_init();
+  encoder_driver_init();
+
+  /* 启动 200 Hz 闭环自平衡控制任务 (消费姿态、PID参数、运动指令队列) */
+  ret = balance_task_init_and_start(imu_attitude_queue,
+                                    pid_config_queue,
+                                    motion_command_queue,
+                                    balance_motor_set_output,
+                                    &BalanceTask_Handle);
+  if (ret != pdPASS)
+  {
+      app_cleanup_before_scheduler();
+      return -1;
+  }
+
+  /* 注册编码器测速回调钩子 */
+  balance_task_set_encoder_read_hook(encoder_driver_read_speed);
 #endif
 
   /* Heartbeat Task (PC13 SYS_LED toggle) */
@@ -143,8 +164,29 @@ static void function1(void *pvParameters)
       }
       else
       {
+#if !MOTOR_POLARITY_TEST_ENABLED
+        balance_state_t b_state = balance_task_get_state();
+        if (b_state == BALANCE_STATE_ARMED)
+        {
+          /* 闭环平衡运行中：常亮 (低电平点亮) */
+          HAL_GPIO_WritePin(SYS_LED_GPIO_Port, SYS_LED_Pin, GPIO_PIN_RESET);
+          vTaskDelay(pdMS_TO_TICKS(100));
+          continue;
+        }
+        else if (b_state == BALANCE_STATE_FALLEN)
+        {
+          /* 倾倒保护触发：快速连闪两下后停顿 */
+          delay_ms = 150U;
+        }
+        else
+        {
+          /* 未使能待机中：500ms 慢闪 */
+          delay_ms = 500U;
+        }
+#else
         /* 校准完毕，姿态解算正常：慢闪 (500ms) */
         delay_ms = 500U;
+#endif
       }
     }
     else
@@ -356,6 +398,12 @@ static void app_cleanup_before_scheduler(void)
   {
       vTaskDelete(MotorPolarityTestTask_Handle);
       MotorPolarityTestTask_Handle = NULL;
+  }
+#else
+  if (BalanceTask_Handle != NULL)
+  {
+      vTaskDelete(BalanceTask_Handle);
+      BalanceTask_Handle = NULL;
   }
 #endif
 #if IMU_UART_TEST_ENABLED

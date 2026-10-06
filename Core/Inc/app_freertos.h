@@ -14,6 +14,9 @@ extern "C" {
 #include "imu_fusion_task.h"
 #include "imu_uart_test_task.h"
 #include "motor_polarity_test_task.h"
+#include "balance_task.h"
+#include "motor_driver.h"
+#include "encoder_driver.h"
 
 int32_t app_synctasks_init(void);
 
