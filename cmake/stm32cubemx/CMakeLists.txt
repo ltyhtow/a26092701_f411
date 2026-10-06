@@ -26,6 +26,7 @@ set(MX_Include_Dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/interface
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/motor/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/include
 )
 
 set(MX_Application_Src
@@ -52,6 +53,9 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_fusion_task.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_uart_test_task.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/motor/src/motor_polarity_test_task.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_controller.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/safety_fsm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_task.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/src/driver_mpu6050.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionAhrs.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionBias.c

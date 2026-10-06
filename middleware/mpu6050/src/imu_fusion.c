@@ -123,6 +123,9 @@ static void write_output(const imu_fusion_t *fusion,
     output->roll_deg = euler.angle.roll;
     output->pitch_deg = euler.angle.pitch;
     output->yaw_deg = euler.angle.yaw;
+    output->gyro_dps[0] = gyroscope.axis.x;
+    output->gyro_dps[1] = gyroscope.axis.y;
+    output->gyro_dps[2] = gyroscope.axis.z;
     output->gyro_bias_dps[0] = offset.axis.x;
     output->gyro_bias_dps[1] = offset.axis.y;
     output->gyro_bias_dps[2] = offset.axis.z;

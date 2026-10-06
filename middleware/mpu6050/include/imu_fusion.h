@@ -41,6 +41,7 @@ typedef struct {
     float roll_deg;
     float pitch_deg;
     float yaw_deg;
+    float gyro_dps[3];
     float gyro_bias_dps[3];
     FusionQuaternion quaternion;
 } imu_fusion_output_t;
