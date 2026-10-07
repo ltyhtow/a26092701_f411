@@ -1,6 +1,8 @@
 import json
+from input_path import require_input_path
 
-with open(r'C:\Users\30496\Desktop\records-2026-10-06-16-45-21.json', 'r', encoding='utf-8') as f:
+path = require_input_path("Inspect 0x86 marker spacing and candidate slices in serial-record JSON; no CRC validation.")
+with path.open('r', encoding='utf-8') as f:
     records = json.load(f)
 
 raw = bytearray()
@@ -21,5 +23,5 @@ print("Deltas between consecutive 0x86:", [indices_86[i+1] - indices_86[i] for i
 # Print 10 slices starting at 0x86
 for idx in indices_86[:5]:
     length = 41
-    print(f"\nFrame at {idx} (len {length}):")
+    print(f"\nCandidate slice at {idx} (up to {length} bytes; not a validated frame):")
     print(raw[idx:idx+length].hex(' '))

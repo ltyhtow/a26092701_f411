@@ -1,5 +1,10 @@
 #include "main.h"
 #include "stm32f4xx_it.h"
+#include "motor_driver.h"
+#include "fault_capture.h"
+#if SERIAL_TRANSPORT_USB_CDC
+#include "usb_cdc_device.h"
+#endif
 
 extern TIM_HandleTypeDef htim11;
 extern DMA_HandleTypeDef hdma_usart2_rx;
@@ -9,34 +14,41 @@ extern UART_HandleTypeDef huart2;
 /******************************************************************************/
 /*            Cortex-M4 Processor Exceptions Handlers                         */
 /******************************************************************************/
-void NMI_Handler(void)
-{
-  while (1) {}
-}
+/* No C prologue may run before MSP/PSP and EXC_RETURN are preserved. The first
+ * handler claims the snapshot; a nested NMI only cuts the bridge and halts on a
+ * separate stack. The basic/extended frame is decoded by the checked C helper. */
+#define FAULT_CAPTURE_STRINGIFY_INNER(value) #value
+#define FAULT_CAPTURE_STRINGIFY(value) FAULT_CAPTURE_STRINGIFY_INNER(value)
+#define CORTEX_FAULT_ENTRY() __asm volatile ( \
+    "cpsid i\n" \
+    "mrs r0, ipsr\n" \
+    "ldr r12, =g_fault_capture_guard\n" \
+    "ldr r1, [r12]\n" \
+    "cmp r1, #0\n" \
+    "bne 1f\n" \
+    "str r0, [r12]\n" \
+    "mrs r2, msp\n" \
+    "mrs r3, psp\n" \
+    "mov r1, lr\n" \
+    "tst r1, #4\n" \
+    "ite eq\n" \
+    "moveq r0, r2\n" \
+    "movne r0, r3\n" \
+    "ldr r12, =g_fault_capture_stack + " FAULT_CAPTURE_STRINGIFY(FAULT_CAPTURE_STACK_BYTES) "\n" \
+    "msr msp, r12\n" \
+    "isb\n" \
+    "b fault_capture_entry\n" \
+    "1:\n" \
+    "ldr r12, =g_fault_nested_stack + " FAULT_CAPTURE_STRINGIFY(FAULT_CAPTURE_STACK_BYTES) "\n" \
+    "msr msp, r12\n" \
+    "isb\n" \
+    "b fault_capture_nested_halt\n")
 
-void HardFault_Handler(void)
-{
-  while (1)
-  {
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    for (volatile uint32_t i = 0; i < 200000; i++) {}
-  }
-}
-
-void MemManage_Handler(void)
-{
-  while (1) {}
-}
-
-void BusFault_Handler(void)
-{
-  while (1) {}
-}
-
-void UsageFault_Handler(void)
-{
-  while (1) {}
-}
+__attribute__((naked, noreturn)) void NMI_Handler(void) { CORTEX_FAULT_ENTRY(); }
+__attribute__((naked, noreturn)) void HardFault_Handler(void) { CORTEX_FAULT_ENTRY(); }
+__attribute__((naked, noreturn)) void MemManage_Handler(void) { CORTEX_FAULT_ENTRY(); }
+__attribute__((naked, noreturn)) void BusFault_Handler(void) { CORTEX_FAULT_ENTRY(); }
+__attribute__((naked, noreturn)) void UsageFault_Handler(void) { CORTEX_FAULT_ENTRY(); }
 
 /******************************************************************************/
 /* STM32F4xx Peripheral Interrupt Handlers                                    */
@@ -81,3 +93,10 @@ void USART2_IRQHandler(void)
 {
   HAL_UART_IRQHandler(&huart2);
 }
+
+#if SERIAL_TRANSPORT_USB_CDC
+void OTG_FS_IRQHandler(void)
+{
+  usb_cdc_device_irq_handler();
+}
+#endif

@@ -26,8 +26,14 @@
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef        htim11;
+static HAL_StatusTypeDef s_timebase_status = HAL_ERROR;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+HAL_StatusTypeDef app_hal_timebase_status(void)
+{
+  return s_timebase_status;
+}
 
 /**
   * @brief  This function configures the TIM11 as a time base source.
@@ -48,14 +54,25 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
   HAL_StatusTypeDef     status;
 
+  s_timebase_status = HAL_ERROR;
+  if (TickPriority >= (1UL << __NVIC_PRIO_BITS))
+  {
+    return HAL_ERROR;
+  }
+
   /* Enable TIM11 clock */
   __HAL_RCC_TIM11_CLK_ENABLE();
 
   /* Get clock configuration */
   HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
 
-  /* Compute TIM11 clock */
-      uwTimclock = HAL_RCC_GetPCLK2Freq();
+  /* TIMPRE is left at its reset value: APB timers run at 2 * PCLK
+     when the APB prescaler is greater than one. */
+  uwTimclock = HAL_RCC_GetPCLK2Freq();
+  if (clkconfig.APB2CLKDivider != RCC_HCLK_DIV1)
+  {
+    uwTimclock *= 2U;
+  }
 
   /* Compute the prescaler value to have TIM11 counter clock equal to 1MHz */
   uwPrescalerValue = (uint32_t) ((uwTimclock / 1000000U) - 1U);
@@ -78,28 +95,30 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   status = HAL_TIM_Base_Init(&htim11);
   if (status == HAL_OK)
   {
+    /* Base_Init generates an update; discard it before enabling the IRQ. */
+    __HAL_TIM_CLEAR_FLAG(&htim11, TIM_FLAG_UPDATE);
+    HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, TickPriority, 0U);
+    uwTickPrio = TickPriority;
     /* Start the TIM time Base generation in interrupt mode */
     status = HAL_TIM_Base_Start_IT(&htim11);
     if (status == HAL_OK)
     {
-    /* Enable the TIM11 global Interrupt */
-        HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-      /* Configure the SysTick IRQ priority */
-      if (TickPriority < (1UL << __NVIC_PRIO_BITS))
-      {
-        /* Configure the TIM IRQ priority */
-        HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, TickPriority, 0U);
-        uwTickPrio = TickPriority;
-      }
-      else
-      {
-        status = HAL_ERROR;
-      }
+      HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
     }
   }
 
- /* Return function status */
+ /* HAL_Init and HAL_RCC_ClockConfig in this HAL discard the return value. */
+  s_timebase_status = status;
   return status;
+}
+
+/* FreeRTOS owns SysTick; HAL timeouts use this independent TIM11 tick. */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM11)
+  {
+    HAL_IncTick();
+  }
 }
 
 /**

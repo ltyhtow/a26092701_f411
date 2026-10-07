@@ -67,8 +67,8 @@ safety_fsm_config_t safety_fsm_default_config(void) {
     cfg.max_linear_accel           = SAFETY_FSM_DEFAULT_MAX_LINEAR_ACCEL;
     cfg.max_linear_decel           = SAFETY_FSM_DEFAULT_MAX_LINEAR_DECEL;
     cfg.max_yaw_accel              = SAFETY_FSM_DEFAULT_MAX_YAW_ACCEL;
-    cfg.require_calibration        = false;
-    cfg.auto_rearm_enable          = true;
+    cfg.require_calibration        = true;
+    cfg.auto_rearm_enable          = false;
     return cfg;
 }
 
@@ -87,7 +87,7 @@ void safety_fsm_init(safety_fsm_t *fsm, const safety_fsm_config_t *config) {
 
     fsm->state          = BALANCE_STATE_DISARMED;
     fsm->previous_state = BALANCE_STATE_DISARMED;
-    fsm->is_upright     = true;
+    fsm->is_upright     = false;
     fsm->is_steady      = false;
 }
 
@@ -133,8 +133,9 @@ bool safety_fsm_can_rearm(const safety_fsm_t *fsm) {
         return false;
     }
 
-    /* Reject if sensor data is invalid */
-    if ((fsm->fault_flags & SAFETY_FAULT_SENSOR_INVALID) != 0U) {
+    /* Communication loss stops motion but retains upright balancing. */
+    if (!fsm->attitude_valid ||
+        (fsm->fault_flags & ~SAFETY_FAULT_CMD_TIMEOUT) != 0U) {
         return false;
     }
 
@@ -144,7 +145,7 @@ bool safety_fsm_can_rearm(const safety_fsm_t *fsm) {
     }
 
     /* Must be within upright recovery limits */
-    return fsm->is_upright;
+    return fsm->is_upright && fsm->is_steady;
 }
 
 uint32_t safety_fsm_get_fault_flags(const safety_fsm_t *fsm) {
@@ -177,12 +178,12 @@ void safety_fsm_feed_motion_cmd(safety_fsm_t *fsm, float target_linear, float ta
     }
 
     if (isfinite(target_linear) && isfinite(target_yaw)) {
-        fsm->target_linear_cmd = target_linear;
-        fsm->target_yaw_cmd    = target_yaw;
+        fsm->target_linear_cmd = (fsm->state == BALANCE_STATE_ARMED) ? target_linear : 0.0f;
+        fsm->target_yaw_cmd    = (fsm->state == BALANCE_STATE_ARMED) ? target_yaw : 0.0f;
     } else {
         fsm->target_linear_cmd = 0.0f;
         fsm->target_yaw_cmd    = 0.0f;
-        fsm->fault_flags      |= SAFETY_FAULT_SENSOR_INVALID;
+        safety_fsm_set_fault(fsm, SAFETY_FAULT_SENSOR_INVALID);
     }
 
     fsm->last_cmd_timestamp_ms = timestamp_ms;
@@ -199,19 +200,30 @@ void safety_fsm_update_attitude(safety_fsm_t *fsm, float pitch_deg, float roll_d
 
     if (!isfinite(pitch_deg) || !isfinite(roll_deg) ||
         !isfinite(gyro_pitch_dps) || !isfinite(gyro_roll_dps) || !isfinite(gyro_yaw_dps)) {
-        fsm->fault_flags |= SAFETY_FAULT_SENSOR_INVALID;
-        fsm->is_upright   = false;
-        fsm->is_steady    = false;
+        safety_fsm_set_fault(fsm, SAFETY_FAULT_SENSOR_INVALID);
         return;
     }
 
-    fsm->fault_flags &= ~SAFETY_FAULT_SENSOR_INVALID;
+    fsm->attitude_valid = true;
+    fsm->attitude_sample_pending = true;
+    /* Recover health, but a running sensor failure remains latched until reset. */
+    if (fsm->state != BALANCE_STATE_FALLEN) {
+        fsm->fault_flags &= ~SAFETY_FAULT_SENSOR_INVALID;
+    }
 
     fsm->current_pitch_deg      = pitch_deg;
     fsm->current_roll_deg       = roll_deg;
     fsm->current_gyro_pitch_dps = gyro_pitch_dps;
     fsm->current_gyro_roll_dps  = gyro_roll_dps;
     fsm->current_gyro_yaw_dps   = gyro_yaw_dps;
+    fsm->is_upright = fabsf(pitch_deg) <= fsm->config.pitch_recovery_limit_deg &&
+                      fabsf(roll_deg) <= fsm->config.roll_recovery_limit_deg;
+    if (!fsm->is_upright || fabsf(gyro_pitch_dps) > fsm->config.gyro_steady_limit_dps ||
+        fabsf(gyro_roll_dps) > fsm->config.gyro_steady_limit_dps ||
+        fabsf(gyro_yaw_dps) > fsm->config.gyro_steady_limit_dps) {
+        fsm->is_steady = false;
+        fsm->steady_duration_ms = 0U;
+    }
 }
 
 void safety_fsm_get_motion_output(const safety_fsm_t *fsm, float *out_linear, float *out_yaw) {
@@ -244,8 +256,8 @@ bool safety_fsm_request_arm(safety_fsm_t *fsm) {
         return true;
     }
 
-    /* Allowed from DISARMED or FALLEN */
-    if (fsm->state == BALANCE_STATE_DISARMED || fsm->state == BALANCE_STATE_FALLEN) {
+    /* A fault reset never doubles as permission to restart. */
+    if (fsm->state == BALANCE_STATE_DISARMED) {
         /* Clear fall tilt faults on successful arming */
         fsm->fault_flags &= ~(SAFETY_FAULT_FALL_PITCH | SAFETY_FAULT_FALL_ROLL);
         fsm->previous_state = fsm->state;
@@ -253,6 +265,9 @@ bool safety_fsm_request_arm(safety_fsm_t *fsm) {
         fsm->state_transition_count++;
         fsm->ramped_linear_vel = 0.0f;
         fsm->ramped_yaw_vel    = 0.0f;
+        fsm->target_linear_cmd = 0.0f;
+        fsm->target_yaw_cmd = 0.0f;
+        fsm->manual_disarm_latched = false;
         return true;
     }
 
@@ -263,8 +278,9 @@ void safety_fsm_request_disarm(safety_fsm_t *fsm) {
     if (fsm == NULL) {
         return;
     }
+    fsm->manual_disarm_latched = true;
 
-    if (fsm->state != BALANCE_STATE_DISARMED) {
+    if (fsm->state != BALANCE_STATE_DISARMED && fsm->state != BALANCE_STATE_FALLEN) {
         fsm->previous_state = fsm->state;
         fsm->state = BALANCE_STATE_DISARMED;
         fsm->state_transition_count++;
@@ -272,6 +288,8 @@ void safety_fsm_request_disarm(safety_fsm_t *fsm) {
 
     fsm->ramped_linear_vel = 0.0f;
     fsm->ramped_yaw_vel    = 0.0f;
+    fsm->target_linear_cmd = 0.0f;
+    fsm->target_yaw_cmd = 0.0f;
 }
 
 bool safety_fsm_request_calibration(safety_fsm_t *fsm) {
@@ -287,6 +305,10 @@ bool safety_fsm_request_calibration(safety_fsm_t *fsm) {
         fsm->is_calibrated = false;
         fsm->ramped_linear_vel = 0.0f;
         fsm->ramped_yaw_vel    = 0.0f;
+        fsm->target_linear_cmd = 0.0f;
+        fsm->target_yaw_cmd = 0.0f;
+        fsm->steady_duration_ms = 0U;
+        fsm->is_steady = false;
         return true;
     }
 
@@ -311,10 +333,17 @@ void safety_fsm_notify_calibration_done(safety_fsm_t *fsm, bool success) {
     fsm->state_transition_count++;
     fsm->ramped_linear_vel = 0.0f;
     fsm->ramped_yaw_vel    = 0.0f;
+    fsm->steady_duration_ms = 0U;
+    fsm->is_steady = false;
 }
 
 bool safety_fsm_reset_fault(safety_fsm_t *fsm) {
     if (fsm == NULL) {
+        return false;
+    }
+
+    if (!fsm->attitude_valid || !fsm->is_upright || !fsm->is_steady ||
+        fsm->state == BALANCE_STATE_CALIBRATING) {
         return false;
     }
 
@@ -336,8 +365,10 @@ bool safety_fsm_reset_fault(safety_fsm_t *fsm) {
     }
 
     /* Clear transient and operator-resettable faults */
-    fsm->fault_flags &= ~(SAFETY_FAULT_CMD_TIMEOUT | SAFETY_FAULT_CALIBRATION_FAIL | SAFETY_FAULT_EMERGENCY_STOP);
+    fsm->fault_flags &= ~(SAFETY_FAULT_CMD_TIMEOUT | SAFETY_FAULT_CALIBRATION_FAIL |
+                          SAFETY_FAULT_EMERGENCY_STOP | SAFETY_FAULT_SENSOR_INVALID);
     fsm->emergency_stop_active = false;
+    safety_fsm_request_disarm(fsm);
     return true;
 }
 
@@ -346,6 +377,24 @@ void safety_fsm_set_fault(safety_fsm_t *fsm, uint32_t fault_flag) {
         return;
     }
     fsm->fault_flags |= fault_flag;
+    if ((fault_flag & SAFETY_FAULT_SENSOR_INVALID) != 0U) {
+        fsm->attitude_valid = false;
+        fsm->attitude_sample_pending = false;
+        fsm->is_upright = false;
+        fsm->is_steady = false;
+        fsm->steady_duration_ms = 0U;
+    }
+    if ((fault_flag & ~SAFETY_FAULT_CMD_TIMEOUT) != 0U) {
+        if (fsm->state == BALANCE_STATE_ARMED) {
+            fsm->previous_state = fsm->state;
+            fsm->state = BALANCE_STATE_FALLEN;
+            fsm->state_transition_count++;
+        }
+        fsm->target_linear_cmd = 0.0f;
+        fsm->target_yaw_cmd = 0.0f;
+        fsm->ramped_linear_vel = 0.0f;
+        fsm->ramped_yaw_vel = 0.0f;
+    }
 }
 
 void safety_fsm_clear_fault(safety_fsm_t *fsm, uint32_t fault_flag) {
@@ -371,6 +420,8 @@ void safety_fsm_emergency_stop(safety_fsm_t *fsm) {
 
     fsm->ramped_linear_vel = 0.0f;
     fsm->ramped_yaw_vel    = 0.0f;
+    fsm->target_linear_cmd = 0.0f;
+    fsm->target_yaw_cmd = 0.0f;
 }
 
 void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
@@ -385,7 +436,8 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
     }
 
     /* 1. Evaluate Upright Status */
-    fsm->is_upright = (fabsf(fsm->current_pitch_deg) <= fsm->config.pitch_recovery_limit_deg) &&
+    fsm->is_upright = fsm->attitude_valid &&
+                      (fabsf(fsm->current_pitch_deg) <= fsm->config.pitch_recovery_limit_deg) &&
                       (fabsf(fsm->current_roll_deg) <= fsm->config.roll_recovery_limit_deg);
 
     /* 2. Evaluate Steady Condition */
@@ -393,12 +445,14 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
                      (fabsf(fsm->current_gyro_roll_dps) <= fsm->config.gyro_steady_limit_dps) &&
                      (fabsf(fsm->current_gyro_yaw_dps) <= fsm->config.gyro_steady_limit_dps);
 
-    if (rates_low) {
+    if (rates_low && fsm->is_upright && fsm->attitude_sample_pending) {
         uint32_t dt_ms = (uint32_t)(dt_s * 1000.0f);
         if (dt_ms == 0U) {
             dt_ms = 1U;
         }
-        fsm->steady_duration_ms += dt_ms;
+        if (fsm->steady_duration_ms < fsm->config.steady_time_threshold_ms) {
+            fsm->steady_duration_ms += dt_ms;
+        }
         if (fsm->steady_duration_ms >= fsm->config.steady_time_threshold_ms) {
             fsm->is_steady = true;
         }
@@ -406,6 +460,7 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
         fsm->steady_duration_ms = 0U;
         fsm->is_steady = false;
     }
+    fsm->attitude_sample_pending = false;
 
     /* 3. Evaluate Fall Protection */
     bool fall_detected = false;
@@ -425,6 +480,8 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
         fsm->fall_event_count++;
         fsm->ramped_linear_vel = 0.0f;
         fsm->ramped_yaw_vel    = 0.0f;
+        fsm->target_linear_cmd = 0.0f;
+        fsm->target_yaw_cmd = 0.0f;
     }
 
     /* If not tilted and in DISARMED state, clear transient fall flags */
@@ -452,6 +509,9 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
                 fsm->watchdog_trip_count++;
             }
             fsm->fault_flags |= SAFETY_FAULT_CMD_TIMEOUT;
+            /* A subsequent heartbeat must not resurrect an expired target. */
+            fsm->target_linear_cmd = 0.0f;
+            fsm->target_yaw_cmd = 0.0f;
         } else {
             fsm->watchdog_tripped = false;
             fsm->fault_flags &= ~SAFETY_FAULT_CMD_TIMEOUT;
@@ -482,16 +542,16 @@ void safety_fsm_step(safety_fsm_t *fsm, float dt_s, uint32_t current_time_ms) {
     }
 
     /* 6. Auto-recovery handling (optional policy) */
-    if ((fsm->state == BALANCE_STATE_FALLEN || fsm->state == BALANCE_STATE_DISARMED) && fsm->config.auto_rearm_enable) {
+    if (fsm->state == BALANCE_STATE_FALLEN && fsm->config.auto_rearm_enable &&
+        !fsm->manual_disarm_latched) {
         if (fsm->is_upright && fsm->is_steady &&
             !fsm->emergency_stop_active &&
-            ((fsm->fault_flags & SAFETY_FAULT_SENSOR_INVALID) == 0U)) {
-            fsm->fault_flags &= ~(SAFETY_FAULT_FALL_PITCH | SAFETY_FAULT_FALL_ROLL);
-            fsm->previous_state = fsm->state;
-            fsm->state = BALANCE_STATE_ARMED;
-            fsm->state_transition_count++;
-            fsm->ramped_linear_vel = 0.0f;
-            fsm->ramped_yaw_vel    = 0.0f;
+            fsm->attitude_valid &&
+            (!fsm->config.require_calibration || fsm->is_calibrated) &&
+            ((fsm->fault_flags & ~(SAFETY_FAULT_FALL_PITCH | SAFETY_FAULT_FALL_ROLL |
+                                   SAFETY_FAULT_CMD_TIMEOUT)) == 0U)) {
+            (void)safety_fsm_reset_fault(fsm);
+            (void)safety_fsm_request_arm(fsm);
         }
     }
 

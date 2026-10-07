@@ -1,118 +1,56 @@
 cmake_minimum_required(VERSION 3.22)
-
-enable_language(C ASM)
-
-set(MX_Defines_Syms
-    USE_HAL_DRIVER
-    STM32F411xE
-    FUSION_USE_NORMAL_SQRT
-    $<$<CONFIG:Debug>:DEBUG>
-)
-
-set(MX_Include_Dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/CMSIS/Device/ST/STM32F4xx/Include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/CMSIS/Include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/third_party/lwrb/src/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/third_party/lwpkt/src/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/interface
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/motor/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/encoder/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/include
-)
-
-set(MX_Application_Src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/gpio.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/tim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/i2c.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/usart.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/adc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/dma.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/app_freertos.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f4xx_it.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f4xx_hal_msp.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f4xx_hal_timebase_tim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/sysmem.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/syscalls.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32f411xe.s
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/src/serial_transport.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/third_party/lwrb/src/lwrb/lwrb.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/serial/third_party/lwpkt/src/lwpkt/lwpkt.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/mpu6050_port.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_task.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_fusion.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_fusion_task.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/src/imu_uart_test_task.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/motor/src/motor_driver.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/motor/src/motor_polarity_test_task.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/encoder/src/encoder_driver.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_controller.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/safety_fsm.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/control/src/balance_task.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/libdriver/src/driver_mpu6050.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionAhrs.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionBias.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionConvention.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../middleware/mpu6050/third_party/fusion/FusionRemap.c
-)
-
-set(STM32_Drivers_Src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/system_stm32f4xx.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c
-)
-
-set(FreeRTOS_Src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/croutine.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/event_groups.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/list.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/queue.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/tasks.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/timers.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
-)
-
-add_library(stm32cubemx INTERFACE)
-target_include_directories(stm32cubemx INTERFACE ${MX_Include_Dirs})
-target_compile_definitions(stm32cubemx INTERFACE ${MX_Defines_Syms})
-
-add_library(STM32_Drivers OBJECT)
-target_sources(STM32_Drivers PRIVATE ${STM32_Drivers_Src})
-target_link_libraries(STM32_Drivers PUBLIC stm32cubemx)
-
-add_library(FreeRTOS OBJECT)
-target_sources(FreeRTOS PRIVATE ${FreeRTOS_Src})
-target_link_libraries(FreeRTOS PUBLIC stm32cubemx)
-
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${MX_Application_Src})
+# Board-generated sources only; no application or portable middleware.
+set(ROOT "${PROJECT_SOURCE_DIR}")
+set(HAL "${ROOT}/Drivers/STM32F4xx_HAL_Driver")
+set(RTOS "${ROOT}/Middlewares/Third_Party/FreeRTOS/Source")
+add_library(stm32_headers INTERFACE)
+target_compile_definitions(stm32_headers INTERFACE USE_HAL_DRIVER STM32F411xE)
+target_compile_definitions(stm32_headers INTERFACE SERIAL_TRANSPORT_USB_CDC=$<BOOL:${SERIAL_TRANSPORT_USB_CDC}>)
+target_include_directories(stm32_headers INTERFACE "${ROOT}/Core/Inc" "${HAL}/Inc" "${HAL}/Inc/Legacy"
+    "${ROOT}/Drivers/CMSIS/Device/ST/STM32F4xx/Include" "${ROOT}/Drivers/CMSIS/Include")
+set(HAL_COMPONENTS tim tim_ex uart i2c i2c_ex adc adc_ex rcc rcc_ex flash flash_ex
+    flash_ramfunc gpio dma dma_ex pwr pwr_ex cortex exti)
+set(HAL_SOURCES "${HAL}/Src/stm32f4xx_hal.c")
+foreach(component IN LISTS HAL_COMPONENTS)
+    list(APPEND HAL_SOURCES "${HAL}/Src/stm32f4xx_hal_${component}.c")
+endforeach()
+add_library(STM32_Drivers STATIC ${HAL_SOURCES})
+target_link_libraries(STM32_Drivers PRIVATE stm32_headers)
+add_library(FreeRTOS STATIC "${RTOS}/croutine.c" "${RTOS}/event_groups.c" "${RTOS}/list.c" "${RTOS}/queue.c"
+    "${RTOS}/stream_buffer.c" "${RTOS}/tasks.c" "${RTOS}/timers.c"
+    "${RTOS}/CMSIS_RTOS_V2/cmsis_os2.c" "${RTOS}/portable/MemMang/heap_4.c" "${RTOS}/portable/GCC/ARM_CM4F/port.c")
+target_include_directories(FreeRTOS PUBLIC "${RTOS}/include" "${RTOS}/portable/GCC/ARM_CM4F"
+    "${ROOT}/platform/freertos/config" PRIVATE "${RTOS}/CMSIS_RTOS_V2")
+target_link_libraries(FreeRTOS PRIVATE stm32_headers)
+add_library(stm32_board OBJECT "${ROOT}/Core/Src/adc.c" "${ROOT}/Core/Src/dma.c" "${ROOT}/Core/Src/gpio.c"
+    "${ROOT}/Core/Src/i2c.c" "${ROOT}/Core/Src/tim.c" "${ROOT}/Core/Src/usart.c"
+    "${ROOT}/Core/Src/stm32f4xx_it.c" "${ROOT}/Core/Src/stm32f4xx_hal_msp.c"
+    "${ROOT}/Core/Src/stm32f4xx_hal_timebase_tim.c" "${ROOT}/Core/Src/system_stm32f4xx.c"
+    "${ROOT}/Core/Src/syscalls.c" "${ROOT}/Core/Src/sysmem.c"
+    "${ROOT}/platform/stm32f411/src/motor_driver_stm32.c"
+    "${ROOT}/platform/stm32f411/src/encoder_driver_stm32.c"
+    "${ROOT}/platform/stm32f411/src/mpu6050_port_stm32.c"
+    "${ROOT}/platform/stm32f411/src/board_encoder_diagnostics_stm32.c"
+    "${ROOT}/platform/stm32f411/src/board_motor_diagnostics_stm32.c"
+    "${ROOT}/platform/stm32f411/src/board_status_stm32.c"
+    "${ROOT}/middleware/mpu6050/third_party/libdriver/src/driver_mpu6050.c")
+target_include_directories(stm32_board PRIVATE "${ROOT}/platform/stm32f411/include"
+    "${ROOT}/platform/freertos/include" "${ROOT}/middleware/mpu6050/third_party/libdriver/src")
+target_link_libraries(stm32_board PRIVATE stm32_headers FreeRTOS robot_port_api encoder_core lwrb)
+if(SERIAL_TRANSPORT_USB_CDC)
+    include("${ROOT}/cmake/usb_device.cmake")
+    target_sources(stm32_board PRIVATE "${ROOT}/platform/stm32f411/src/serial_transport_usb.c")
+    target_include_directories(stm32_board PRIVATE "${ROOT}/platform/stm32f411/usb")
+else()
+    target_sources(stm32_board PRIVATE "${ROOT}/platform/stm32f411/src/serial_transport_stm32.c")
+endif()
+target_sources(stm32_board PRIVATE "${ROOT}/platform/stm32f411/src/fault_capture_stm32.c")
+set_source_files_properties("${ROOT}/platform/stm32f411/src/fault_capture_stm32.c"
+    "${ROOT}/Core/Src/stm32f4xx_it.c" PROPERTIES
+    COMPILE_OPTIONS "-mgeneral-regs-only;-fno-stack-protector;-fno-instrument-functions")
+target_sources(stm32_board PRIVATE "${ROOT}/platform/stm32f411/src/eeprom_at24c08_stm32.c")
+target_compile_definitions(stm32_board PRIVATE EEPROM_ENABLED=$<BOOL:${EEPROM_ENABLED}>)
+if(EEPROM_ENABLED)
+    target_sources(stm32_board PRIVATE "${ROOT}/middleware/eeprom/third_party/libdriver/driver_at24cxx.c")
+    target_include_directories(stm32_board PRIVATE "${ROOT}/middleware/eeprom/third_party/libdriver")
+endif()

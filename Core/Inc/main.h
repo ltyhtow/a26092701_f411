@@ -21,6 +21,8 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+/* The bundled HAL discards HAL_InitTick's return value; startup checks this. */
+HAL_StatusTypeDef app_hal_timebase_status(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define SYS_LED_Pin GPIO_PIN_13
@@ -32,8 +34,14 @@ void Error_Handler(void);
 #define MOTOR1_IN2_GPIO_Port GPIOA
 #define MOTOR2_IN1_Pin GPIO_PIN_10
 #define MOTOR2_IN1_GPIO_Port GPIOA
+#if SERIAL_TRANSPORT_USB_CDC
+/* USB owns PA11/PA12. Right bridge IN2 moves to PB5 / AF2 TIM3_CH2. */
+#define MOTOR2_IN2_Pin GPIO_PIN_5
+#define MOTOR2_IN2_GPIO_Port GPIOB
+#else
 #define MOTOR2_IN2_Pin GPIO_PIN_11
 #define MOTOR2_IN2_GPIO_Port GPIOA
+#endif
 
 #define VBAT_ADC_Pin GPIO_PIN_0
 #define VBAT_ADC_GPIO_Port GPIOB

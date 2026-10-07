@@ -18,6 +18,38 @@
             }
         },
         {
+            "name": "EncoderTest",
+            "inherits": "Debug",
+            "cacheVariables": {
+                "ENCODER_PUSH_TEST": "ON"
+            }
+        },
+        {
+            "name": "EepromDebug",
+            "inherits": "Debug",
+            "cacheVariables": { "EEPROM_ENABLED": "ON" }
+        },
+        {
+            "name": "WheelTest",
+            "inherits": "Debug",
+            "cacheVariables": { "WHEEL_TEST": "ON", "ENCODER_PUSH_TEST": "OFF", "EEPROM_ENABLED": "OFF" }
+        },
+        {
+            "name": "UsbDebug",
+            "inherits": "Debug",
+            "cacheVariables": { "SERIAL_TRANSPORT_USB_CDC": "ON" }
+        },
+        {
+            "name": "UsbWheelTest",
+            "inherits": "WheelTest",
+            "cacheVariables": { "SERIAL_TRANSPORT_USB_CDC": "ON" }
+        },
+        {
+            "name": "UsbEncoderTest",
+            "inherits": "EncoderTest",
+            "cacheVariables": { "SERIAL_TRANSPORT_USB_CDC": "ON" }
+        },
+        {
             "name": "Release",
             "inherits": "default",
             "cacheVariables": {
@@ -26,6 +58,15 @@
         }
     ],
     "buildPresets": [
+        { "name": "UsbDebug", "configurePreset": "UsbDebug" },
+        { "name": "UsbWheelTest", "configurePreset": "UsbWheelTest" },
+        { "name": "UsbEncoderTest", "configurePreset": "UsbEncoderTest" },
+        { "name": "WheelTest", "configurePreset": "WheelTest" },
+        { "name": "EepromDebug", "configurePreset": "EepromDebug" },
+        {
+            "name": "EncoderTest",
+            "configurePreset": "EncoderTest"
+        },
         {
             "name": "Debug",
             "configurePreset": "Debug"

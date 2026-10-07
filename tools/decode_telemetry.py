@@ -1,11 +1,9 @@
-#!/usr/bin/env python3
 """
-LwPKT 平衡车遥测二进制协议帧解析器
-解析 CMD=0x84 (IMU原始状态), 0x85 (诊断帧), 0x86 (姿态解算帧)
+平衡车串口日志特征字节统计器。
+仅统计 0x84、0x85、0x86，不解析或验证 LwPKT 帧。
 """
-import sys
 import json
-import struct
+from input_path import require_input_path
 
 def parse_record_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -19,13 +17,12 @@ def parse_record_file(filepath):
 
     print(f"=== 成功加载串口数据: 共 {len(raw)} 字节 ===")
 
-    # 统计数据包
+    # Count literal bytes, including payload bytes; these are not frame counts.
     count_84 = 0
     count_85 = 0
     count_86 = 0
 
-    for i in range(len(raw) - 20):
-        cmd = raw[i]
+    for cmd in raw:
         if cmd == 0x86:
             count_86 += 1
         elif cmd == 0x84:
@@ -33,12 +30,12 @@ def parse_record_file(filepath):
         elif cmd == 0x85:
             count_85 += 1
 
-    print(f"检测到协议特征帧分布:")
-    print(f"  - CMD 0x86 (姿态解算帧 / Attitude):  {count_86} 处标记")
-    print(f"  - CMD 0x84 (IMU原始状态帧 / Status): {count_84} 处标记")
-    print(f"  - CMD 0x85 (诊断信息帧 / Diag):     {count_85} 处标记")
-    print(f"\n连续数据流极为稳定，帧间隔均匀，FreeRTOS + DMA 连续传输链路完全健康！")
+    print("特征字节出现次数（不是有效帧数量）:")
+    print(f"  - 0x86: {count_86}")
+    print(f"  - 0x84: {count_84}")
+    print(f"  - 0x85: {count_85}")
+    print("\n本工具没有校验帧头、长度、CRC 或时间间隔，不能据此判断传输链路健康。")
 
 if __name__ == '__main__':
-    path = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\30496\Desktop\records-2026-10-06-16-45-21.json"
+    path = require_input_path("Count telemetry marker bytes in serial-record JSON; does not validate frames or link health.")
     parse_record_file(path)

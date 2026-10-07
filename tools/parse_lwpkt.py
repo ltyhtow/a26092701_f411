@@ -1,7 +1,8 @@
 import json
-import struct
+from input_path import require_input_path
 
-with open(r'C:\Users\30496\Desktop\records-2026-10-06-16-45-21.json', 'r', encoding='utf-8') as f:
+path = require_input_path("Inspect candidate LwPKT marker bytes in serial-record JSON; no CRC validation.")
+with path.open('r', encoding='utf-8') as f:
     records = json.load(f)
 
 raw = bytearray()
@@ -12,10 +13,10 @@ for r in records:
 
 print(f"Total raw bytes: {len(raw)}")
 
-# Search for LwPKT frames:
-# LwPKT packet structure:
+# Candidate markers only; this script does not reconstruct or validate frames.
+# Current firmware packet structure (see lwpkt_opts.h):
 # START byte: 0xAA
-# CMD (varint encoded, for 0x84, 0x85, 0x86 it might be 0x84, 0x01 or similar)
+# CMD (one byte; extended commands are disabled)
 # LEN (varint)
 # DATA
 # CRC8

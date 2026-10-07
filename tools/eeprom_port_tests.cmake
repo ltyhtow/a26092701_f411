@@ -1,0 +1,18 @@
+# Included by tools/CMakeLists.txt after host_test() is defined.
+set(EEPROM_VENDOR "${PROJECT_ROOT}/middleware/eeprom/third_party/libdriver")
+foreach(mode disabled a2_low a2_high)
+    host_test(test_eeprom_port_${mode} test_eeprom_port.c "${BOARD}/src/eeprom_at24c08_stm32.c")
+    target_include_directories(test_eeprom_port_${mode} PRIVATE "${BOARD}/include"
+        "${PROJECT_ROOT}/platform/include")
+    if(mode STREQUAL disabled)
+        target_compile_definitions(test_eeprom_port_${mode} PRIVATE EEPROM_ENABLED=0)
+    else()
+        target_sources(test_eeprom_port_${mode} PRIVATE "${EEPROM_VENDOR}/driver_at24cxx.c")
+        target_include_directories(test_eeprom_port_${mode} PRIVATE stubs_eeprom_port "${OS}/include" "${EEPROM_VENDOR}")
+        target_compile_definitions(test_eeprom_port_${mode} PRIVATE EEPROM_ENABLED=1)
+        if(mode STREQUAL a2_high)
+            target_compile_definitions(test_eeprom_port_${mode} PRIVATE EEPROM_AT24C08_A2=1)
+        endif()
+    endif()
+    add_test(NAME eeprom_port_${mode} COMMAND test_eeprom_port_${mode})
+endforeach()

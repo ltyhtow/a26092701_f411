@@ -1,9 +1,24 @@
 #include "imu_fusion.h"
 
 #include "imu_config.h"
+#include "FusionAhrs.h"
+#include "FusionBias.h"
+#include "FusionRemap.h"
 
 #include <math.h>
 #include <string.h>
+
+struct imu_fusion_context {
+    FusionAhrs ahrs;
+    FusionBias bias;
+    FusionRemapAlignment alignment;
+    FusionVector gyro_calibration_sum;
+    FusionVector calibration_previous_gyro;
+    FusionVector calibration_previous_accel;
+    uint32_t calibration_samples, last_timestamp_ms;
+    uint8_t calibrated, has_timestamp, calibration_has_previous;
+};
+size_t imu_fusion_context_size(void) { return sizeof(imu_fusion_t); }
 
 static FusionVector sample_accelerometer(const imu_sample_t *sample,
                                          const imu_fusion_t *fusion) {
@@ -129,7 +144,8 @@ static void write_output(const imu_fusion_t *fusion,
     output->gyro_bias_dps[0] = offset.axis.x;
     output->gyro_bias_dps[1] = offset.axis.y;
     output->gyro_bias_dps[2] = offset.axis.z;
-    output->quaternion = quaternion;
+    output->quaternion = (attitude_quaternion_t){quaternion.element.w, quaternion.element.x,
+                                                quaternion.element.y, quaternion.element.z};
 
     if (is_stationary(gyroscope, accelerometer) != 0U) {
         output->status_flags |= IMU_FUSION_STATUS_STATIONARY;
@@ -165,9 +181,10 @@ void imu_fusion_init(imu_fusion_t *fusion) {
 }
 
 void imu_fusion_set_alignment(imu_fusion_t *fusion,
-                              FusionRemapAlignment alignment) {
+                              uint8_t alignment) {
+    if (alignment >= 24U) return;
     if (fusion != NULL && fusion->alignment != alignment) {
-        fusion->alignment = alignment;
+        fusion->alignment = (FusionRemapAlignment)alignment;
         fusion->gyro_calibration_sum = FUSION_VECTOR_ZERO;
         fusion->calibration_previous_gyro = FUSION_VECTOR_ZERO;
         fusion->calibration_previous_accel = FUSION_VECTOR_ZERO;
@@ -193,8 +210,21 @@ uint8_t imu_fusion_update(imu_fusion_t *fusion,
     FusionVector gyroscope;
     float period;
     uint16_t status_flags = 0U;
+    uint8_t finite_sample = sample != NULL;
 
-    if (fusion == NULL || sample == NULL) {
+    /* Reject invalid physical input before remapping or touching calibration,
+     * timestamps and the third-party estimator. A later healthy sample can
+     * then recover without requiring a full filter reset. */
+    if (sample != NULL) {
+        for (unsigned axis = 0U; axis < 3U; ++axis) {
+            if (!isfinite(sample->accel_g[axis]) || !isfinite(sample->gyro_dps[axis])) {
+                finite_sample = 0U;
+                break;
+            }
+        }
+    }
+
+    if (fusion == NULL || finite_sample == 0U) {
         if (output != NULL) {
             memset(output, 0, sizeof(*output));
             output->timestamp_ms = timestamp_ms;

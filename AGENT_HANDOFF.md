@@ -1,5 +1,7 @@
 # STM32F411CEU6 两轮自平衡小车项目交接文档 (Agent Handoff)
 
+> 历史文档：包含已过时的供电、任务、源文件路径与测试结论。当前维护入口为 [README.md](README.md)，架构以 [ARCHITECTURE_REFACTOR_20261007.md](ARCHITECTURE_REFACTOR_20261007.md) 和实际源码为准。
+
 **更新时间**：2026-10-07  
 **固件工程根目录**：`C:\Users\30496\CLionProjects\a26092701_f411`  
 **核心芯片**：STM32F411CEU6 (WeAct BlackPill, ARM Cortex-M4F @ 100MHz, 128KB RAM, 512KB Flash)  

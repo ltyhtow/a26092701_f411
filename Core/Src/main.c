@@ -6,13 +6,19 @@
 #include "usart.h"
 #include "gpio.h"
 #include "app_freertos.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "motor_driver.h"
 
 void SystemClock_Config(void);
 
 int main(void)
 {
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  if (HAL_Init() != HAL_OK || app_hal_timebase_status() != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /* Configure the system clock */
   SystemClock_Config();
@@ -23,9 +29,14 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_TIM1_Init();
+#if SERIAL_TRANSPORT_USB_CDC
+  MX_TIM3_Init();
+#endif
   MX_TIM2_Init();
   MX_TIM5_Init();
+#if !SERIAL_TRANSPORT_USB_CDC
   MX_USART2_UART_Init();
+#endif
 
   /* Initialize FreeRTOS tasks and queues */
   if (app_synctasks_init() != 0)
@@ -37,13 +48,14 @@ int main(void)
   vTaskStartScheduler();
 
   /* We should never get here as control is now taken by the scheduler */
+  Error_Handler();
   while (1)
   {
   }
 }
 
 /**
-  * @brief System Clock Configuration (100MHz from HSI)
+  * @brief UART: 100MHz HSI. USB: 96MHz from confirmed 25MHz HSE, USB 48MHz.
   * @retval None
   */
 void SystemClock_Config(void)
@@ -59,6 +71,19 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
+#if SERIAL_TRANSPORT_USB_CDC
+#if HSE_VALUE != 25000000U
+#error "USB board configuration requires the confirmed 25 MHz HSE crystal"
+#endif
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 192;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+#else
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -68,6 +93,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
+#endif
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -82,7 +108,8 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK ||
+      app_hal_timebase_status() != HAL_OK)
   {
     Error_Handler();
   }
@@ -91,6 +118,7 @@ void SystemClock_Config(void)
 void Error_Handler(void)
 {
   __disable_irq();
+  motor_driver_emergency_stop();
   while (1)
   {
     /* 错误指示：快速两下，停顿 */

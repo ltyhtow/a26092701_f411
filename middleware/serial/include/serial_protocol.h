@@ -12,14 +12,43 @@ extern "C" {
 #define SERIAL_CMD_MOTION       0x01U
 #define SERIAL_CMD_PID_CONFIG   0x02U
 #define SERIAL_CMD_SYSTEM       0x03U
+#define SERIAL_CMD_PARAMETER    0x04U
+#define SERIAL_CMD_WHEEL_CONTROL 0x06U
 #define SERIAL_CMD_TELEMETRY    0x81U
 #define SERIAL_CMD_PID_ACK      0x82U
 #define SERIAL_CMD_RESPONSE     0x83U
 #define SERIAL_CMD_IMU_STATUS   0x84U
 #define SERIAL_CMD_IMU_DIAGNOSTIC 0x85U
 #define SERIAL_CMD_IMU_ATTITUDE 0x86U
+#define SERIAL_CMD_ENCODER_TEST 0x87U
+#define SERIAL_CMD_WHEEL_TEST   0x88U
+
+typedef struct {
+    uint8_t version, sequence, action, reserved; /* START=1, STOP=2, heartbeat=3 */
+} wheel_test_command_t;
+typedef struct {
+    uint8_t version, sequence, phase, reason;
+    uint32_t timestamp_ms, phase_elapsed_ms;
+    int16_t left_pwm, right_pwm;
+    uint32_t heartbeat_age_ms;
+    uint16_t flags, reserved;
+    uint32_t remaining_ms, test_elapsed_ms;
+} wheel_test_telemetry_t;
+
+#define ENCODER_TEST_VALID          (1U << 0)
+#define ENCODER_TEST_READY          (1U << 1)
+#define ENCODER_TEST_MOTOR_LOCKED    (1U << 2)
+#define ENCODER_TEST_INVERT_LEFT     (1U << 3)
+#define ENCODER_TEST_INVERT_RIGHT    (1U << 4)
 
 #define SERIAL_PROTOCOL_VERSION 1U
+
+#define SERIAL_STORAGE_CONFIGURED (1U << 0)
+#define SERIAL_STORAGE_READY      (1U << 1)
+#define SERIAL_STORAGE_VALID      (1U << 2)
+#define SERIAL_STORAGE_DIRTY      (1U << 3)
+#define SERIAL_STORAGE_BUSY       (1U << 4)
+#define SERIAL_STORAGE_ERROR      (1U << 5)
 
 typedef enum {
     SERIAL_PROTOCOL_OK = 0,
@@ -37,14 +66,15 @@ typedef struct {
     uint32_t rx_timeouts;
     uint32_t unknown_commands;
     uint32_t queue_overruns;
+    uint32_t rx_invalid_payloads;
 } serial_protocol_stats_t;
 
 typedef struct {
     uint8_t  version;
     uint8_t  sequence;
     uint8_t  reserved[2];
-    int32_t  linear_q16_16;
-    int32_t  yaw_q16_16;
+    int32_t  linear_q16_16; /* Quadrature counts per 5 ms control sample. */
+    int32_t  yaw_q16_16;    /* Degrees per second. */
     uint16_t timeout_ms;
     uint16_t flags;
 } motion_command_t;
@@ -66,6 +96,36 @@ typedef struct {
     uint8_t action;
     uint8_t reserved;
 } system_command_t;
+
+typedef enum {
+    PARAMETER_OP_GET = 1, PARAMETER_OP_SET = 2, PARAMETER_OP_SAVE = 3,
+    PARAMETER_OP_LOAD = 4, PARAMETER_OP_DEFAULTS = 5, PARAMETER_OP_STATUS = 6
+} parameter_operation_t;
+
+typedef enum {
+    SERIAL_RESPONSE_OK = 0, SERIAL_RESPONSE_BUSY = 1,
+    SERIAL_RESPONSE_INVALID = 2, SERIAL_RESPONSE_UNSUPPORTED = 3,
+    SERIAL_RESPONSE_UNSAFE = 4, SERIAL_RESPONSE_STORAGE_ERROR = 5,
+    SERIAL_RESPONSE_NO_SAVED = 6, SERIAL_RESPONSE_NOT_READY = 7
+} serial_response_status_t;
+
+/* 0x04: eight wire bytes. Unsupported operation/key values reach the application
+ * so it can return an explicit rejection with the original request sequence. */
+typedef struct {
+    uint8_t version, sequence, operation, key;
+    int32_t value_q16_16;
+} parameter_command_t;
+
+/* 0x82 (legacy PID completion) and 0x83 (parameter/status result): 24 bytes.
+ * sequence identifies the original request; key is loop_id for a PID result.
+ * OK means the operation completed, never merely entered a queue. */
+typedef struct {
+    uint8_t version, sequence, request_command, status;
+    uint8_t key, controller_state;
+    uint16_t storage_flags;
+    int32_t value_q16_16;
+    uint32_t fault_flags, config_revision, timestamp_ms;
+} command_response_t;
 
 typedef struct {
     uint8_t  version;
@@ -125,16 +185,30 @@ typedef struct {
     uint32_t timestamp_ms;
 } imu_attitude_telemetry_t;
 
-_Static_assert(sizeof(motion_command_t) == 16U, "motion command wire size");
-_Static_assert(sizeof(pid_config_command_t) == 20U, "pid command wire size");
-_Static_assert(sizeof(system_command_t) == 4U, "system command wire size");
-_Static_assert(sizeof(motion_telemetry_t) == 32U, "motion telemetry wire size");
-_Static_assert(sizeof(imu_telemetry_t) == 24U, "imu telemetry wire size");
-_Static_assert(sizeof(imu_diagnostic_t) == 24U, "imu diagnostic wire size");
-_Static_assert(sizeof(imu_attitude_telemetry_t) == 52U, "imu attitude wire size");
+/* Native DTO only. serial_codec defines the fixed little-endian wire layout. */
+typedef struct {
+    uint8_t version;
+    uint8_t sequence;
+    uint16_t flags;
+    uint32_t timestamp_ms;
+    uint32_t sample_period_ms;
+    uint32_t raw_left;
+    uint32_t raw_right;
+    int32_t delta_left;
+    int32_t delta_right;
+    uint32_t gpio_levels; /* bit0=L A, bit1=L B, bit2=R A, bit3=R B */
+    int64_t total_left;
+    int64_t total_right;
+    uint32_t tx_dropped;
+    uint32_t sample_errors;
+} encoder_test_telemetry_t;
 
-/* Thread-safe packet submission API for FreeRTOS task context. */
+/* Task-context adapter API: data points to the command's native DTO; length is
+ * sizeof that DTO (validation only). The codec, never struct layout, determines
+ * the wire bytes. Commands without a defined payload are rejected. */
 serial_protocol_result_t serial_protocol_send(uint32_t command, const void *data, size_t length);
+/* Nonblocking submission for control tasks: BUSY/TX_FULL drops this frame. */
+serial_protocol_result_t serial_protocol_try_send(uint32_t command, const void *data, size_t length);
 void serial_protocol_get_stats(serial_protocol_stats_t *stats);
 
 #ifdef __cplusplus

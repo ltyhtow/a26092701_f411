@@ -18,8 +18,10 @@ typedef struct {
     uint8_t address;
     uint8_t chip_id;
     uint16_t init_result;
-    uint32_t hal_status;
-    uint32_t hal_error_codes;
+    /* Backend diagnostic codes for the most recent transport operation.
+     * Consumers report these values; only the backend interprets their bits. */
+    uint32_t transport_status;
+    uint32_t transport_error_codes;
 } imu_port_diagnostics_t;
 
 uint8_t imu_port_init(void);

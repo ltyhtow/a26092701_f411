@@ -96,6 +96,9 @@ typedef struct {
     bool is_steady;                     /**< Gyro rates below steady threshold for required duration */
     bool watchdog_tripped;              /**< True when motion command watchdog has timed out */
     bool emergency_stop_active;         /**< True when E-stop condition is latched */
+    bool attitude_valid;               /**< A finite, healthy attitude has been supplied */
+    bool attitude_sample_pending;      /**< Only newly supplied samples qualify steady time */
+    bool manual_disarm_latched;        /**< Explicit stop inhibits optional automatic fall recovery */
 
     /* Attitude inputs */
     float current_pitch_deg;            /**< Latest pitch angle (deg) */
@@ -249,7 +252,8 @@ void safety_fsm_get_motion_output(const safety_fsm_t *fsm, float *out_linear, fl
 
 /**
  * @brief Request transition to BALANCE_STATE_ARMED.
- * @details Allowed from DISARMED or FALLEN if upright and steady, and no blocking faults.
+ * @details Allowed from DISARMED if upright and steady, and no blocking faults.
+ *          FALLEN requires an explicit successful reset first (default policy).
  * @param[in,out] fsm Pointer to safety_fsm_t.
  * @return true if transitioned to ARMED, false if rejected due to safety violations.
  */

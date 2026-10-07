@@ -1,13 +1,8 @@
 /**
  * @file motor_driver.h
- * @brief AT8236 dual H-bridge motor driver for STM32F411 balance robot.
- * @details Drives 4-channel 20 kHz PWM via TIM1:
- *          - Left Motor (A-channel, polarity inverted):
- *              Forward:  AIN1(PA8)=0,   AIN2(PA9)=PWM
- *              Backward: AIN1(PA8)=PWM, AIN2(PA9)=0
- *          - Right Motor (B-channel, normal polarity):
- *              Forward:  BIN1(PA10)=PWM, BIN2(PA11)=0
- *              Backward: BIN1(PA10)=0,   BIN2(PA11)=PWM
+ * @brief Platform-independent dual motor actuator contract.
+ * @details Board-specific polarity and PWM realization belong to the backend.
+ *          Physical forward direction still requires bench verification.
  */
 
 #ifndef MOTOR_DRIVER_H
@@ -21,7 +16,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Initialize TIM1 4-channel PWM channels and enable MOE main output.
+ * @brief Initialize the board motor outputs at zero effort.
  */
 void motor_driver_init(void);
 
@@ -33,14 +28,24 @@ void motor_driver_init(void);
 void motor_driver_set_output(int16_t left_pwm, int16_t right_pwm);
 
 /**
- * @brief Cut off all PWM outputs immediately (coast/freewheel, PWM=0).
+ * @brief Set all compare values to zero (takes effect at the next PWM update).
  */
 void motor_driver_stop(void);
 
 /**
- * @brief Active braking (both low-side drivers on, shorting motor terminals).
+ * @brief Compatibility alias for zero drive; no separate braking mode.
  */
 void motor_driver_brake(void);
+
+/**
+ * @brief Latch a fatal stop until reset and immediately disable motor outputs.
+ * @details Safe before driver/timer initialization and in fault/ISR context.
+ *          The backend must not allocate, wait, or depend on a running scheduler.
+ */
+void motor_driver_emergency_stop(void);
+
+/** @brief True after a fatal stop or a PWM startup failure, until MCU reset. */
+bool motor_driver_fault_latched(void);
 
 #ifdef __cplusplus
 }

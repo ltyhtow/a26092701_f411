@@ -18,6 +18,12 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* htim_pwm)
   {
     __HAL_RCC_TIM1_CLK_ENABLE();
   }
+#if SERIAL_TRANSPORT_USB_CDC
+  else if(htim_pwm->Instance==TIM3)
+  {
+    __HAL_RCC_TIM3_CLK_ENABLE();
+  }
+#endif
 }
 
 void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* htim_pwm)
@@ -26,6 +32,12 @@ void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* htim_pwm)
   {
     __HAL_RCC_TIM1_CLK_DISABLE();
   }
+#if SERIAL_TRANSPORT_USB_CDC
+  else if(htim_pwm->Instance==TIM3)
+  {
+    __HAL_RCC_TIM3_CLK_DISABLE();
+  }
+#endif
 }
 
 /**

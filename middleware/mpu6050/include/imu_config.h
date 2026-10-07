@@ -1,12 +1,8 @@
 #ifndef IMU_CONFIG_H
 #define IMU_CONFIG_H
 
-/* Keep the raw sampler active while leaving bring-up UART traffic opt-in. */
+/* Sampling and estimator settings, independent of application diagnostics. */
 #define IMU_SAMPLE_PERIOD_MS     5U
-#ifndef IMU_UART_TEST_ENABLED
-#define IMU_UART_TEST_ENABLED    0U
-#endif
-#define IMU_UART_TEST_PERIOD_MS  50U
 
 /* Fusion runs on the raw sample stream and keeps its own latest-value output. */
 #define IMU_FUSION_SAMPLE_RATE_HZ             (1000.0f / (float)IMU_SAMPLE_PERIOD_MS)

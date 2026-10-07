@@ -2,11 +2,10 @@
 #define IMU_FUSION_H
 
 #include <stdint.h>
+#include <stddef.h>
 
-#include "FusionAhrs.h"
-#include "FusionBias.h"
-#include "FusionRemap.h"
 #include "imu_port.h"
+#include "robot_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,36 +19,15 @@ extern "C" {
 #define IMU_FUSION_STATUS_STARTUP            0x0020U
 #define IMU_FUSION_STATUS_INPUT_INVALID      0x0040U
 
-typedef struct {
-    FusionAhrs ahrs;
-    FusionBias bias;
-    FusionRemapAlignment alignment;
-    FusionVector gyro_calibration_sum;
-    FusionVector calibration_previous_gyro;
-    FusionVector calibration_previous_accel;
-    uint32_t calibration_samples;
-    uint32_t last_timestamp_ms;
-    uint8_t calibrated;
-    uint8_t has_timestamp;
-    uint8_t calibration_has_previous;
-} imu_fusion_t;
-
-typedef struct {
-    uint32_t timestamp_ms;
-    uint16_t status_flags;
-    uint16_t calibration_samples;
-    float roll_deg;
-    float pitch_deg;
-    float yaw_deg;
-    float gyro_dps[3];
-    float gyro_bias_dps[3];
-    FusionQuaternion quaternion;
-} imu_fusion_output_t;
+typedef struct imu_fusion_context imu_fusion_t;
+typedef attitude_sample_t imu_fusion_output_t;
+/* Caller owns malloc-aligned storage of this size; no allocation in the core. */
+size_t imu_fusion_context_size(void);
 
 void imu_fusion_init(imu_fusion_t *fusion);
 
 void imu_fusion_set_alignment(imu_fusion_t *fusion,
-                              FusionRemapAlignment alignment);
+                              uint8_t alignment);
 
 uint8_t imu_fusion_update(imu_fusion_t *fusion,
                           const imu_sample_t *sample,

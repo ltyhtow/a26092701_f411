@@ -82,9 +82,9 @@ typedef struct {
 typedef struct {
     float kp;                   /**< Proportional gain (effort / (speed_unit)) */
     float ki;                   /**< Integral gain (effort / (speed_unit * s)) */
-    float integral_limit;       /**< Maximum anti-windup integral accumulator magnitude */
+    float integral_limit;       /**< Maximum accumulator magnitude; zero disables integration */
     float lpf_alpha;            /**< First-order LPF factor: y[k] = alpha*y[k-1] + (1-alpha)*x[k] */
-    float max_output;           /**< Output saturation limit (PWM effort or max tilt degrees) */
+    float max_output;           /**< Output limit (PWM effort or tilt degrees); zero disables loop */
 } velocity_pid_params_t;
 
 /**
@@ -93,7 +93,7 @@ typedef struct {
 typedef struct {
     float kp;                   /**< Proportional gain on yaw rate error */
     float kd;                   /**< Derivative gain on yaw rate error derivative */
-    float max_output;           /**< Maximum differential effort for turning */
+    float max_output;           /**< Maximum differential effort; zero disables turning */
 } turn_pid_params_t;
 
 /**
@@ -108,7 +108,7 @@ typedef struct {
     float max_pitch_angle;                      /**< Tip-over cutoff angle (deg); shutdown if |pitch| > max */
     float deadband_left;                        /**< Left motor deadband PWM boost (stiction compensation) */
     float deadband_right;                       /**< Right motor deadband PWM boost (stiction compensation) */
-    float max_pwm;                              /**< Maximum allowed PWM magnitude (e.g. 4999.0f) */
+    float max_pwm;                              /**< Board-supplied PWM limit, > 0 and <= INT16_MAX */
     bool auto_recovery_enabled;                 /**< If true, auto-recover from tip-over when upright again; if false, latch until reset */
 
     balance_velocity_coupling_mode_t velocity_coupling_mode; /**< Parallel summation or cascade tilt */
@@ -154,8 +154,8 @@ typedef struct {
     float gyro_pitch_dps;           /**< Gyro angular velocity around pitch axis (deg/s) */
     float gyro_yaw_dps;             /**< Gyro angular velocity around yaw/turn axis (deg/s) */
 
-    float measured_speed_left;      /**< Measured left wheel speed (pulses/period, mm/s, or RPM) */
-    float measured_speed_right;     /**< Measured right wheel speed (pulses/period, mm/s, or RPM) */
+    float measured_speed_left;      /**< Left speed; F411 task normalizes X4 counts to nominal 5 ms */
+    float measured_speed_right;     /**< Right speed in the same counts/nominal-5-ms units */
 
     float target_speed;             /**< Desired linear forward speed (same unit as measured_speed) */
     float target_yaw_rate_dps;      /**< Desired turning yaw rate (deg/s, positive = turn left/CCW) */
@@ -193,20 +193,27 @@ typedef struct {
 /* ========================================================================= */
 
 /**
- * @brief Populate configuration struct with standard, safe default parameters.
+ * @brief Populate example configuration; gains/deadband are not hardware calibration.
+ *        Board integration must supply its motor limit and calibrated parameters.
  * @param[out] config Pointer to configuration struct to populate.
  */
 void balance_controller_default_config(balance_controller_config_t *config);
 
+/** Validate finite parameters, PWM representation and cascade tilt envelope.
+ *  Invalid configuration cannot be enabled and forces zero output at update.
+ *  Configure a tilt limit in degrees before selecting cascade mode. */
+bool balance_controller_config_is_valid(const balance_controller_config_t *config);
+
 /**
- * @brief Initialize the balance controller instance with given configuration.
+ * @brief Initialize all runtime state with outputs disabled until explicit enable.
  * @param[in,out] ctrl Pointer to controller instance.
  * @param[in]     config Pointer to configuration parameters (NULL for default config).
  */
 void balance_controller_init(balance_controller_t *ctrl, const balance_controller_config_t *config);
 
 /**
- * @brief Reset all controller runtime state (filters, integrators, flags) to zero.
+ * @brief Reset loop history/tip latch, preserving enable and historical tip count.
+ *        Only call on an initialized context; this is not an emergency stop API.
  * @param[in,out] ctrl Pointer to controller instance.
  */
 void balance_controller_reset(balance_controller_t *ctrl);
@@ -261,7 +268,8 @@ float balance_controller_get_mechanical_zero(const balance_controller_t *ctrl);
 void balance_controller_set_balance_gains(balance_controller_t *ctrl, float kp, float kd);
 
 /**
- * @brief Set Velocity loop PI gains.
+ * @brief Set finite Velocity PI gains and clear the speed filter/integral history.
+ *        Invalid gains or negative/nonfinite limit are ignored. Zero Ki never integrates.
  * @param[in,out] ctrl Pointer to controller instance.
  * @param[in]     kp Proportional gain.
  * @param[in]     ki Integral gain.
@@ -270,7 +278,7 @@ void balance_controller_set_balance_gains(balance_controller_t *ctrl, float kp, 
 void balance_controller_set_velocity_gains(balance_controller_t *ctrl, float kp, float ki, float integral_limit);
 
 /**
- * @brief Set Turn loop PD gains.
+ * @brief Set finite Turn PD gains and clear derivative history; invalid values ignored.
  * @param[in,out] ctrl Pointer to controller instance.
  * @param[in]     kp Proportional gain.
  * @param[in]     kd Derivative gain.
@@ -285,7 +293,8 @@ void balance_controller_set_turn_gains(balance_controller_t *ctrl, float kp, flo
  * @param[in]     ki Integral gain (applicable to velocity loop).
  * @param[in]     kd Derivative gain (applicable to balance/turn loops).
  * @param[in]     limit Output/integral limit.
- * @return True if loop_id was recognized and updated, false otherwise.
+ * @return True if loop_id and all numeric arguments were valid and updated.
+ *         Velocity limit zero disables integration. Turn limit zero preserves its limit.
  */
 bool balance_controller_set_loop_gains(balance_controller_t *ctrl,
                                        uint8_t loop_id,
@@ -297,6 +306,12 @@ bool balance_controller_set_loop_gains(balance_controller_t *ctrl,
 /**
  * @brief Main control step function. Executes balance, velocity, and turn loops,
  *        mixes outputs, applies deadband compensation and saturation limits.
+ *        All sensors/targets must be finite even for a disabled loop. Invalid data,
+ *        configuration, arithmetic overflow or dt outside [0.0001, 0.5] seconds
+ *        produces zero PWM with safety_active and clears loop history. The caller
+ *        must latch/handle this fault and enforce its tighter real-time deadline.
+ *        Use setters for online gain changes. Direct config/topology edits require
+ *        outputs disabled and balance_controller_reset() before re-enabling.
  *
  * @param[in,out] ctrl Pointer to controller instance.
  * @param[in]     inputs Sensor measurements and target references.
@@ -323,7 +338,9 @@ float balance_controller_calc_balance_pd(const balance_pid_params_t *params,
                                          float gyro_pitch_dps);
 
 /**
- * @brief Calculate Velocity PI loop effort with 1st-order LPF and anti-windup.
+ * @brief Calculate PI from an already-filtered error with conditional integration.
+ *        Zero Ki/limit cannot retain hidden integral; max_output zero disables PI.
+ *        Invalid numerical inputs return NAN for caller fault handling.
  * @param[in]     params Velocity PI parameters.
  * @param[in,out] state Velocity loop runtime state.
  * @param[in]     speed_error Speed error (target - filtered_speed).

@@ -3,6 +3,15 @@ build/
 bin/
 obj/
 
+# Python runtime caches
+__pycache__/
+*.py[cod]
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+
 # CMake temporary files
 CMakeLists.txt.user
 CMakeCache.txt

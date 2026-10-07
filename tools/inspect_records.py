@@ -1,6 +1,8 @@
 import json
+from input_path import require_input_path
 
-with open(r'C:\Users\30496\Desktop\records-2026-10-06-16-45-21.json', 'r', encoding='utf-8') as f:
+path = require_input_path("List record timestamps and lengths from a serial-record JSON file.")
+with path.open('r', encoding='utf-8') as f:
     records = json.load(f)
 
 print("Total records:", len(records))
