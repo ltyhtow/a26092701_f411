@@ -74,13 +74,36 @@ CDC 关闭、USB 复位、断线和挂起会使旧会话失效；传输环和解
 
 为了连硬件端点中尚未完成的数据也一并取消，**关闭已打开的 CDC 端口，或在会话期间 USB 挂起，会触发 USB 重新枚举**：设备断开至少 100 ms 后再连接，COM 口可能短暂消失。等 Windows 中端口重新出现后再运行下一条命令；不要将这个现象误判为 MCU 重启。等待由非阻塞状态机完成，电机任务继续执行原有失联停机逻辑。
 
+## Windows 已枚举但未出现 COM：ADB 驱动误绑定
+
+2026-10-07 22:56 的实机记录确认父设备 `USB\VID_CAFE&PID_4001` 已正常配置并启动，使用 `usbccgp`。先前的“设备设置未迁移”消息不能单独判定当前设备失败。
+
+只读查询进一步确认其 `MI_00` 子接口报告合法 CDC 兼容 ID `USB\Class_02&SubClass_02`，但实际绑定成 **Android ADB Interface**，服务为 `WinUSB`、驱动为 `oem92.inf`（原名 `android_winusb.inf`）。Windows 内置 `usbser.inf` 同样匹配，排名均为 `00FF2004`，但 ADB 包被选中。因此此时没有 COM 口，不需要重刷固件或改 VID/PID；该 ADB 包匹配的是整个 CDC 类，改 PID 也不能可靠规避。
+
+在设备管理器对**这个板子的子接口**操作：
+
+1. 找到 `Android ADB Interface`，在“属性 → 详细信息 → 硬件 ID”确认包含 `USB\VID_CAFE&PID_4001&MI_00`。
+2. 选择“更新驱动程序 → 浏览我的电脑以查找驱动程序 → 让我从计算机上的可用驱动程序列表中选取”。
+3. 选择 Microsoft 的 **USB 串行设备 / USB Serial Device**。如列表中没有，使用“从磁盘安装”，指定 `C:\Windows\INF\usbser.inf`。
+4. 完成后在“端口（COM 和 LPT）”查看新增 COM 号；如 Windows 请求管理员授权，需要由本机用户完成。
+
+只更换此 `MI_00` 接口的驱动，不要修改父级 USB Composite Device，也不需要删除整机 ADB 驱动包。CDC 使用 Windows 内置串口驱动，依据见 [Microsoft Usbser 文档](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-driver-installation-based-on-compatible-ids)。
+
+换驱动后可只读复查（不打开端口、不启动轮子）：
+
+```powershell
+pwsh -NoProfile -File tools\usb_status.ps1
+```
+
+预期子接口为 `Class: Ports`、`Service: usbser`、`DriverInf: usbser.inf`，名称含 COM 号。脚本退出码 0 表示串口驱动已绑定，1 表示板子存在但未找到串口驱动，2 表示板子当前未连接；这不等于帧通信或编码器测试已通过。
+
 ## 本次 COM10 超时的实际记录
 
 `build/wheel-test/run01.bin` 共 1740 字节：按项目真实帧格式解析出 **34 个有效 0x81 普通遥测帧，没有 0x88 WheelTest 状态帧**，另有 8 次 CRC 错误和 3 次帧尾错误。它证明当时能接收部分有效串口数据，同时固件模式与脚本不匹配；不能据此宣布串口模块完全损坏或链路完全正常。脚本现在会在这个情形下提示选择 WheelTest/UsbWheelTest。
 
 若没有出现新 COM 口，依次核对：已改开 PA11 电机线、使用数据线、实际刷入 UsbWheelTest、程序没有停在断点或错误处理、25 MHz HSE 正常启动。若出现 COM 口但没有 WAIT，核对 `--usb-cdc` 和固件预设，再保留新的原始记录；不要放宽状态心跳超时来掩盖通信问题。
 
-本轮软件构建和模拟测试不等于板上已成功枚举 USB；Windows 枚举、持续传输、拔插后的停机，以及两轮/编码器表现仍需实车验收。Agent 未打开实车端口、烧录或发送电机命令。
+实机现已确认能枚举父设备及 CDC 子接口；Windows 串口驱动正确绑定、持续传输、拔插后的停机，以及两轮/编码器表现仍需继续验收。Agent 未打开实车端口、烧录或发送电机命令。
 
 ## 软件验证记录
 
